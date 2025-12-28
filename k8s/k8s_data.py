@@ -3,9 +3,10 @@ import logging
 from typing import List, Dict, Any, Union, Generator
 
 import datasets
+import chz
 from tinker_cookbook.supervised.data import SupervisedDatasetFromHFDataset, conversation_to_datum
 from tinker_cookbook.tokenizer_utils import get_tokenizer, Tokenizer
-from tinker_cookbook.supervised.types import SupervisedDataset
+from tinker_cookbook.supervised.types import SupervisedDataset, ChatDatasetBuilder
 from tinker_cookbook.renderers import get_renderer, TrainOnWhat, Renderer
 
 # Define Features matching the expected schema
@@ -204,6 +205,25 @@ def load_gemini_history(tokenizer: Tokenizer, renderer: Renderer, data_files: Un
         batch_size=batch_size, # Default batch size
         map_fn=map_fn
     )
+
+
+@chz.chz
+class K8sDatasetBuilder(ChatDatasetBuilder):
+    """
+    Builder for the K8s dataset.
+    """
+    data_files: str | list[str] = "gemini-3.0-preview-history.jsonl"
+    generate_sub_traj: bool = False
+
+    def __call__(self) -> tuple[SupervisedDataset, SupervisedDataset | None]:
+        dataset = load_gemini_history(
+            tokenizer=self.tokenizer,
+            renderer=self.renderer,
+            data_files=self.data_files,
+            generate_sub_traj=self.generate_sub_traj,
+            batch_size=self.common_config.batch_size,
+        )
+        return dataset, None
 
 
 
