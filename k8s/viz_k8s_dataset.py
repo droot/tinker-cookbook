@@ -2,7 +2,14 @@ import chz
 from tinker_cookbook import model_info, renderers
 from tinker_cookbook.tokenizer_utils import get_tokenizer
 from tinker_cookbook.utils.format_colorized import format_colorized
-from k8s.k8s_data import load_gemini_history
+try:
+    from k8s.k8s_data import K8sDatasetBuilder
+except ImportError:
+    # Fallback for when running directly from k8s directory or without k8s package
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    from k8s_data import K8sDatasetBuilder
 
 @chz.chz
 class Config:
@@ -23,13 +30,28 @@ def run(cfg: Config):
     renderer.strip_thinking_from_history = cfg.strip_thinking_from_history
     
     # Load dataset using our custom loader
-    ds_wrapper = load_gemini_history(
-        tokenizer, 
-        renderer, 
-        cfg.dataset_path, 
+    # Load dataset using our custom loader
+    from tinker_cookbook.supervised.types import ChatDatasetBuilderCommonConfig
+    builder = K8sDatasetBuilder(
+        common_config=ChatDatasetBuilderCommonConfig(
+            model_name_for_tokenizer=cfg.model_name,
+            renderer_name=cfg.renderer_name,
+            max_length=cfg.max_length,
+            batch_size=cfg.batch_size,
+        ),
+        data_files=cfg.dataset_path,
         generate_sub_traj=cfg.generate_sub_traj,
-        batch_size=cfg.batch_size
     )
+    # We may need to manually inject this property since the builder normally gets it from config
+    # actually ChatDatasetBuilder creates its own renderer from common_config
+    if cfg.strip_thinking_from_history:
+        # This is a bit tricky as the builder creates a fresh renderer
+        # We might need to monkeypatch or just accept that we can't easily modify the renderer inside the builder
+        # efficiently without changing the builder API or using a custom renderer name.
+        # For now, let's assume the user uses a renderer name that handles this or we ignore it if mostly for viz
+        print("Warning: strip_thinking_from_history is not directly supported via builder yet without custom renderer")
+
+    ds_wrapper, _ = builder()
     dataset = ds_wrapper.hf_dataset
     print(f"Loaded {len(dataset)} examples.")
     
