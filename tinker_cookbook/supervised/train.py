@@ -369,5 +369,9 @@ async def main(config: Config):
     logger.info("Training completed successfully")
 
 
+def entrypoint(config: Config):
+    asyncio.run(main(config))
+
+
 if __name__ == "__main__":
-    chz.nested_entrypoint(lambda config: asyncio.run(main(config)), allow_hyphens=True)
+    chz.nested_entrypoint(entrypoint, allow_hyphens=True)
